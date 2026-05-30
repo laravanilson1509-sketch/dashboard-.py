@@ -52,7 +52,8 @@ def load_data() -> pd.DataFrame:
     df = pd.read_csv(io.BytesIO(raw))
     df["Op_Codigo"] = df["Operação"].str.extract(r"^(\d+)")[0].astype(str).str.strip()
     df["Data Realização"] = pd.to_datetime(df["Data Realização"], errors="coerce")
-    df["Data"] = df["Data Realização"].dt.date
+    # ✅ Mantém como datetime64 — NÃO converte para .date
+    df["Data"] = df["Data Realização"].dt.normalize()
     df["Mes"]  = df["Data Realização"].dt.to_period("M").astype(str)
     df["Total Minutos"]   = pd.to_numeric(df["Total Minutos"],   errors="coerce").fillna(0)
     df["Metros Lineares"] = pd.to_numeric(df["Metros Lineares"], errors="coerce").fillna(0)
@@ -81,8 +82,8 @@ def kpi_card(label, value, sub="", color=""):
 df_raw["Data"] = pd.to_datetime(df_raw["Data"], errors='coerce')
 
 # Agora o .min() funcionará ignorando os valores inválidos
-min_d = df_raw["Data"].min()
-max_d = df_raw["Data"].max()
+min_d = df_raw["Data"].min().date()
+max_d = df_raw["Data"].max().date()
 
 with st.sidebar:
     st.markdown("## 🏭 Produção 2026")
@@ -163,10 +164,14 @@ d_ini_dt = pd.to_datetime(d_ini)
 d_fim_dt = pd.to_datetime(d_fim)
 
 # 3. Aplica o filtro usando as variáveis convertidas
+# ── FILTRAR ───────────────────────────────────────────────────────────────────
+d_ini_dt = pd.Timestamp(d_ini)
+d_fim_dt = pd.Timestamp(d_fim) + pd.Timedelta(hours=23, minutes=59, seconds=59)
+
 df = df_raw[
-    (df_raw["Data"] >= d_ini_dt) & 
-    (df_raw["Data"] <= d_fim_dt) & 
-    (df_raw["Máquina"].isin(sel_maq)) & 
+    (df_raw["Data"] >= d_ini_dt) &
+    (df_raw["Data"] <= d_fim_dt) &
+    (df_raw["Máquina"].isin(sel_maq)) &
     (df_raw["Operador"].isin(sel_op))
 ].copy()
 
