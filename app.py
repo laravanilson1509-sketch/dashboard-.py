@@ -82,6 +82,7 @@ df_raw["Data"] = pd.to_datetime(df_raw["Data"], errors='coerce')
 
 # Agora o .min() funcionará ignorando os valores inválidos
 min_d = df_raw["Data"].min()
+df_raw["Data"] = pd.to_datetime(df_raw["Data"], errors="coerce")
 max_d = df_raw["Data"].max()
 
 with st.sidebar:
@@ -103,60 +104,74 @@ with st.sidebar:
                 df["M2"]              = pd.to_numeric(df["M2"],              errors="coerce").fillna(0)
                 return df
             df_raw = load_uploaded(uploaded.read())
-            min_d = df_raw["Data"].min()
-            max_d = df_raw["Data"].max()
 
-    st.markdown("---")
-    st.markdown("### 📅 Período")
+# Converter data uma única vez
+df_raw["Data"] = pd.to_datetime(df_raw["Data"], errors="coerce")
 
-    modo = st.radio("", ["Intervalo", "Dia único", "Semana", "Mês"], horizontal=False)
+# Remover valores inválidos
+df_raw = df_raw.dropna(subset=["Data"])
 
-    if modo == "Dia único":
-        dia = st.date_input("Selecione o dia", value=max_d, min_value=min_d, max_value=max_d)
-        d_ini = d_fim = dia
-        lbl = dia.strftime("%d/%m/%Y")
+# Calcular min e max
+df_raw["Data"] = pd.to_datetime(df_raw["Data"], errors="coerce")
+df_raw = df_raw.dropna(subset=["Data"])
 
-    elif modo == "Semana":
-        # pick any day and auto-expand to Mon-Sun
-        ref = st.date_input("Qualquer dia da semana", value=max_d, min_value=min_d, max_value=max_d)
-        d_ini = ref - timedelta(days=ref.weekday())
-        d_fim = d_ini + timedelta(days=6)
-        d_ini = max(d_ini, min_d); d_fim = min(d_fim, max_d)
-        lbl = f"Semana {d_ini.strftime('%d/%m')} → {d_fim.strftime('%d/%m/%Y')}"
+min_d = df_raw["Data"].min().date()
+max_d = df_raw["Data"].max().date()
 
-    elif modo == "Mês":
-        meses_disp = sorted(df_raw["Mes"].dropna().unique())
-        mes_sel = st.selectbox("Mês", meses_disp, index=len(meses_disp)-1)
-        p = pd.Period(mes_sel, "M")
-        d_ini = p.start_time.date(); d_fim = p.end_time.date()
-        d_ini = max(d_ini, min_d);   d_fim = min(d_fim, max_d)
-        lbl = mes_sel
+st.markdown("---")
+st.markdown("### 📅 Período")
 
-    else:  # Intervalo
-        d_ini = st.date_input("De",  value=min_d, min_value=min_d, max_value=max_d, key="di")
-        d_fim = st.date_input("Até", value=max_d, min_value=min_d, max_value=max_d, key="df")
-        if d_ini > d_fim:
-            st.error("Data início maior que data fim"); st.stop()
-        lbl = f"{d_ini.strftime('%d/%m/%Y')} → {d_fim.strftime('%d/%m/%Y')}"
+modo = st.radio("", ["Intervalo", "Dia único", "Semana", "Mês"], horizontal=False)
 
-    st.markdown("---")
-    st.markdown("### 🔧 Filtros")
-    maquinas = sorted(df_raw["Máquina"].dropna().unique())
-    sel_maq = st.multiselect("Máquina", maquinas, default=maquinas)
+if modo == "Dia único":
+    dia = st.date_input("Selecione o dia", value=max_d, min_value=min_d, max_value=max_d)
+    d_ini = d_fim = dia
+    lbl = dia.strftime("%d/%m/%Y")
 
-    operadores = sorted(df_raw["Operador"].dropna().unique())
-    sel_op = st.multiselect("Operador", operadores, default=operadores)
+elif modo == "Semana":
+    # pick any day and auto-expand to Mon-Sun
+    ref = st.date_input("Qualquer dia da semana", value=max_d, min_value=min_d, max_value=max_d)
+    d_ini = ref - timedelta(days=ref.weekday())
+    d_fim = d_ini + timedelta(days=6)
+    d_ini = max(d_ini, min_d)
+    d_fim = min(d_fim, max_d)
+    lbl = f"Semana {d_ini.strftime('%d/%m')} → {d_fim.strftime('%d/%m/%Y')}"
 
-    st.markdown("---")
-    st.markdown("### 🎯 Metas")
-    meta_cp = st.slider("Curto Prazo (%)",  10, 100, 60, 5)
-    meta_mp = st.slider("Médio Prazo (%)", 10, 100, 70, 5)
-    meta_lp = st.slider("Longo Prazo (%)", 10, 100, 75, 5)
+elif modo == "Mês":
+    meses_disp = sorted(df_raw["Mes"].dropna().unique())
+    mes_sel = st.selectbox("Mês", meses_disp, index=len(meses_disp)-1)
+    p = pd.Period(mes_sel, "M")
+    d_ini = p.start_time.date()
+    d_fim = p.end_time.date()
+    d_ini = max(d_ini, min_d)
+    d_fim = min(d_fim, max_d)
+    lbl = mes_sel
 
-# ── FILTRAR (AJUSTADO) ────────────────────────────────────────────────────────
+else:  # Intervalo
+    d_ini = st.date_input("De", value=min_d, min_value=min_d, max_value=max_d, key="di")
+    d_fim = st.date_input("Até", value=max_d, min_value=min_d, max_value=max_d, key="df")
 
-# 1. Garante que a coluna seja datetime (ignora erros de texto inválido)
-df_raw["Data"] = pd.to_datetime(df_raw["Data"], errors='coerce')
+    if d_ini > d_fim:
+        st.error("Data início maior que data fim")
+        st.stop()
+
+    lbl = f"{d_ini.strftime('%d/%m/%Y')} → {d_fim.strftime('%d/%m/%Y')}"
+
+st.markdown("---")
+st.markdown("### 🔧 Filtros")
+
+maquinas = sorted(df_raw["Máquina"].dropna().unique())
+sel_maq = st.multiselect("Máquina", maquinas, default=maquinas)
+
+operadores = sorted(df_raw["Operador"].dropna().unique())
+sel_op = st.multiselect("Operador", operadores, default=operadores)
+
+st.markdown("---")
+st.markdown("### 🎯 Metas")
+
+meta_cp = st.slider("Curto Prazo (%)", 10, 100, 60, 5)
+meta_mp = st.slider("Médio Prazo (%)", 10, 100, 70, 5)
+meta_lp = st.slider("Longo Prazo (%)", 10, 100, 75, 5)
 
 # 2. Garante que os limites do filtro sejam do mesmo tipo que a coluna
 d_ini_dt = pd.to_datetime(d_ini)
